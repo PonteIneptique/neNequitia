@@ -6,7 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from .codecs import LabelEncoder
+from nenequitia.codecs import LabelEncoder
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
 
@@ -48,13 +48,13 @@ class LstmModule(pl.LightningModule):
                 nn.Softmax(dim=-1)
             )
 
-        self.accuracy: Optional[torchmetrics.Accuracy] = None
-        self.precision: Optional[torchmetrics.Precision] = None
-        self.recall: Optional[torchmetrics.Recall] = None
+        self.metric_accuracy: Optional[torchmetrics.Accuracy] = None
+        self.metric_precision: Optional[torchmetrics.Precision] = None
+        self.metric_recall: Optional[torchmetrics.Recall] = None
         if training:
-            self.recall = torchmetrics.Recall()
-            self.accuracy = torchmetrics.Accuracy()
-            self.precision = torchmetrics.Precision()
+            self.metric_recall = torchmetrics.Recall()
+            self.metric_accuracy = torchmetrics.Accuracy()
+            self.metric_precision = torchmetrics.Precision()
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=5e-3)
@@ -75,9 +75,9 @@ class LstmModule(pl.LightningModule):
         loss = F.cross_entropy(preds, truthes)
         self.log('Dev[Loss]', loss)
         preds = preds.argmax(dim=-1)
-        self.log('Dev[Acc]', self.accuracy(preds, truthes))
-        self.log('Dev[Pre]', self.precision(preds, truthes))
-        self.log('Dev[Rec]', self.recall(preds, truthes))
+        self.log('Dev[Acc]', self.metric_accuracy(preds, truthes))
+        self.log('Dev[Pre]', self.metric_precision(preds, truthes))
+        self.log('Dev[Rec]', self.metric_recall(preds, truthes))
         return loss
 
     def forward(self, matrix: torch.Tensor, lengths: torch.Tensor, softmax: bool = False):

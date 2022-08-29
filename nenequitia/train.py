@@ -1,4 +1,4 @@
-from nenequitia.model import LstmModule
+from nenequitia.models import LstmModule
 from nenequitia.codecs import LabelEncoder
 from typing import Optional
 from pandas import DataFrame, read_hdf
