@@ -50,7 +50,7 @@ if __name__ == "__main__":
     model = test_from_hdf5_dataframe(
         train=train,
         test=test,
-        ckpt_path="/home/thibault/dev/Medieval-Model/lightning_logs/version_18/checkpoints/sample-epoch=14.ckpt"
+        ckpt_path="/home/thibault/dev/Medieval-Model/lightning_logs/version_23/checkpoints/sample-epoch=14.ckpt"
     )
 
 

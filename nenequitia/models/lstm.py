@@ -13,7 +13,6 @@ from nenequitia.codecs import LabelEncoder
 
 class LstmModule(BaseModule):
     def __init__(self, encoder: LabelEncoder,
-                 bins: int,
                  emb_size: int = 128,
                  hid_size: int = 128,
                  dropout: float = .1,
@@ -21,7 +20,7 @@ class LstmModule(BaseModule):
                  lr: float = 5e-3,
                  training: bool = False):
         super(LstmModule, self).__init__(
-            encoder=encoder, bins=bins, lr=lr, training=training
+            encoder=encoder, lr=lr, training=training
         )
 
         self.hparams["dropout"]: float = dropout

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 from pandas import DataFrame, read_hdf
 from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
@@ -16,9 +16,12 @@ def train_from_hdf5_dataframe(
     dev: DataFrame,
     test: Optional[DataFrame] = None,
     batch_size: int = 256,
-    lr=1e-4
+    lr=1e-4,
+    hparams: Optional[Dict] = None
 ):
     encoder = LabelEncoder.from_dataframe(train)
+    if not hparams:
+        hparams = {}
 
     # data
     train_loader = DataLoader(
@@ -30,14 +33,9 @@ def train_from_hdf5_dataframe(
         DataFrameDataset(dev, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
         num_workers=4
     )
-    if test:
-        test_loader = DataLoader(
-            DataFrameDataset(test, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
-            num_workers=4
-        )
 
     # model
-    model = AttentionalModule(encoder=encoder, bins=len(train.bin.unique()), training=True, lr=lr)
+    model = AttentionalModule(encoder=encoder, training=True, lr=lr, **hparams)
 
     # training
     checkpoint_callback = ModelCheckpoint(
@@ -57,22 +55,33 @@ def train_from_hdf5_dataframe(
         ],
         max_epochs=300
     )
+    model.save_hyperparameters()
     trainer.fit(model, train_loader, val_loader)
     if test:
-        trainer.test(dataloaders=test_loader)
-    return model
+        test_loader = DataLoader(
+            DataFrameDataset(test, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
+            num_workers=4
+        )
+
+    return trainer.test(dataloaders=test_loader)
 
 
 if __name__ == "__main__":
     df = read_hdf("texts.hdf5", key="df", index_col=0)
 
-    df["bin"] = (df.CER // 5).astype(int)
+    df["bin"] = ""
+    df.loc[df.CER < 10, "bin"] = "Good"
+    df.loc[df.CER.between(10, 20, inclusive="left"), "bin"] = "Acceptable"
+    df.loc[df.CER.between(20, 50, inclusive="left"), "bin"] = "Bad"
+    df.loc[df.CER >= 50, "bin"] = "Very bad"
 
-    for i in range(5):
-        train, dev, test = get_manuscripts_and_lang_kfolds(
-            df,
-            k=i,
-            per_k=2,
-            force_test=["SBB_PK_Hdschr25"]
-        )
-        model = train_from_hdf5_dataframe(train, dev)
+    for (lr, dropout) in [(1e-3, .1), (1e-3, .2), (1e-4, .1)]:
+        for i in range(1):
+            train, dev, test = get_manuscripts_and_lang_kfolds(
+                df,
+                k=i, per_k=2,
+                force_test=["SBB_PK_Hdschr25"]
+            )
+            model = train_from_hdf5_dataframe(train, dev, test=test, lr=lr, hparams={
+                "dropout": dropout
+            })

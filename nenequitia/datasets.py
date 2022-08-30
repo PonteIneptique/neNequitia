@@ -21,7 +21,7 @@ class DataFrameDataset(Dataset):
                 self.encoder.encode_string(string)
                 for string in df.transcription
             ]
-        self._bins = self.df.bin.tolist()
+        self._bins = [self.encoder.encode_y(bin) for bin in self.df.bin.tolist()]
 
     def __len__(self):
         return len(self.df)

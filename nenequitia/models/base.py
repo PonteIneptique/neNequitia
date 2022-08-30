@@ -17,11 +17,10 @@ from nenequitia.optimizers import Ranger
 
 class BaseModule(pl.LightningModule):
     # https://github.com/lascivaroma/seligator/blob/main/seligator/modules/seq2vec/han.py
-    def __init__(self, encoder: LabelEncoder, bins: int, lr: float = 5e-3, training: bool = False):
+    def __init__(self, encoder: LabelEncoder, lr: float = 5e-3, training: bool = False):
         super(BaseModule, self).__init__()
         self.encoder = encoder
-        self.inp = len(encoder)
-        self.out = bins
+        self.inp, self.out = encoder.shape
 
         self.hparams["encoder"] = self.encoder.to_hparams()
         self.hparams["bins"] = self.out
@@ -33,11 +32,10 @@ class BaseModule(pl.LightningModule):
         self.metric_recall: Optional[torchmetrics.Recall] = None
         self.metric_confusion: Optional[torchmetrics.ConfusionMatrix]
         if training:
-            self.metric_recall = torchmetrics.Recall(average="macro", num_classes=bins)
-            self.metric_accuracy = torchmetrics.Accuracy(average="macro", num_classes=bins)
-            self.metric_precision = torchmetrics.Precision(average="macro", num_classes=bins)
-            self.metric_confusion = torchmetrics.ConfusionMatrix(normalize="true", num_classes=bins,)
-
+            self.metric_recall = torchmetrics.Recall(average="macro", num_classes=self.out)
+            self.metric_accuracy = torchmetrics.Accuracy(average="macro", num_classes=self.out)
+            self.metric_precision = torchmetrics.Precision(average="macro", num_classes=self.out)
+            self.metric_confusion = torchmetrics.ConfusionMatrix(normalize="true", num_classes=self.out)
 
     def get_preds_from_forward(self, predictions) -> torch.Tensor:
         return predictions
@@ -50,7 +48,7 @@ class BaseModule(pl.LightningModule):
                 mode="min",
                 patience=2,
                 threshold=2e-3,
-                min_lr=self._lr/10
+                min_lr=1e-4
             ),
             "monitor": "Dev[Loss]"
         }
@@ -94,10 +92,7 @@ class BaseModule(pl.LightningModule):
         confusion = np.round(confusion, 0)
         confusion = ConfusionMatrixDisplay(
             confusion_matrix=confusion,
-            display_labels=[
-                f"[{100/self.out*b:.0f}:{100/self.out*(b+1):.0f}]"
-                for b in range(self.out)
-            ]
+            display_labels=self.encoder.ys
         )
 
         figure, ax = plt.subplots(figsize=(10, 10), dpi=300)

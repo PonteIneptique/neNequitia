@@ -9,14 +9,14 @@ from nenequitia.models.base import BaseModule
 
 class AttentionalModule(BaseModule):
     # https://github.com/lascivaroma/seligator/blob/main/seligator/modules/seq2vec/han.py
-    def __init__(self, encoder: LabelEncoder, bins: int,
+    def __init__(self, encoder: LabelEncoder,
                  emb_size: int = 200,
                  hid_size: int = 256,
                  dropout: float = .2,
                  lr: float = 5e-3,
                  training: bool = False):
         super(AttentionalModule, self).__init__(
-            encoder=encoder, bins=bins, lr=lr, training=training
+            encoder=encoder, lr=lr, training=training
         )
         self.hparams["dropout"]: float = dropout
         self.hparams["emb_size"]: int = emb_size

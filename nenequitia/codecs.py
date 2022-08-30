@@ -10,13 +10,13 @@ from typing import Tuple, Dict, List, Optional, Sequence, Union, IO
 class LabelEncoder:
     def __init__(
         self,
-        features: Optional[List[str]] = None,
+        features: List[str],
+        ys: List[str],
         langs: Optional[List[str]] = None,
         inject_special: bool = True
     ):
-        self.features = features or ()
-        if self.features:
-            self.features: Tuple[str, ...] = tuple(features)
+        self.features: Tuple[str, ...] = tuple(features)
+        self.ys: Tuple[str, ...] = tuple(ys)
         self.use_langs: bool = False
         if langs:
             self.use_langs = True
@@ -30,13 +30,15 @@ class LabelEncoder:
         self._bos = 2
         self._eos = 3
 
-    def __len__(self):
-        return len(self.features)
+    @property
+    def shape(self):
+        return len(self.features), len(self.ys)
 
     @classmethod
-    def from_text(cls, texts: List[str]) -> "LabelEncoder":
+    def from_text(cls, texts: List[str], ys: List[str]) -> "LabelEncoder":
         return cls(
             features=["[PAD]", "[UNK]", "[BOS]", "[EOS]"] + sorted(list(set("".join(texts)))),
+            ys=ys,
             inject_special=False
         )
 
@@ -46,8 +48,11 @@ class LabelEncoder:
             raise ValueError("Dataframe requires a `transcription` column containing the text of each line")
         if use_lang and "lang" not in df.columns.tolist():
             raise ValueError("`use_lang` required the dataframe to have a `lang` column")
+        if "bin" not in df.columns.tolist():
+            raise ValueError("Dataframe requires a `bin` column containing the class of each line")
         return cls(
             features=sorted(list(set("".join(df.transcription.tolist())))),
+            ys=df.bin.unique().tolist(),
             langs=sorted(df.lang.unique().tolist()) if use_lang else None,
             inject_special=True
         )
@@ -72,6 +77,9 @@ class LabelEncoder:
             ]
         )
 
+    def encode_y(self, bin: str) -> int:
+        return self.ys.index(bin)
+
     def pad_gt(self, gt: List[Tuple[torch.Tensor, int]]) -> Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
         strings, ys = zip(*gt)
         lengths = [string.shape[0] for string in strings]
@@ -94,7 +102,8 @@ class LabelEncoder:
     def to_hparams(self):
         return {
             "features": self.features,
-            "use_lang": self.use_langs
+            "use_lang": self.use_langs,
+            "ys": self.ys
         }
 
 
