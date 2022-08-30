@@ -1,34 +1,26 @@
-from typing import Optional
-
-import torchmetrics
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch.utils.data import DataLoader
-import pytorch_lightning as pl
-from nenequitia.codecs import LabelEncoder
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
+from nenequitia.codecs import LabelEncoder
+from nenequitia.models.base import BaseModule
 
-class AttentionalModule(pl.LightningModule):
+
+class AttentionalModule(BaseModule):
     # https://github.com/lascivaroma/seligator/blob/main/seligator/modules/seq2vec/han.py
     def __init__(self, encoder: LabelEncoder, bins: int,
-                 emb_size: int = 128,
-                 hid_size: int = 128,
+                 emb_size: int = 100,
+                 hid_size: int = 256,
                  dropout: float = .1,
-                 use_highway: bool = True,
                  lr: float = 5e-3,
                  training: bool = False):
-        super(AttentionalModule, self).__init__()
-        self.encoder = encoder
-        self.inp = len(encoder) + 4
-        self.out = bins
-
-        self._lr: float = lr
+        super(AttentionalModule, self).__init__(
+            encoder=encoder, bins=bins, lr=lr, training=training
+        )
         self._dropout: float = dropout
         self._emb_size: int = emb_size
         self._hid_size: int = hid_size
-        self._use_highway: bool = use_highway
 
         self._emb = nn.Sequential(
             nn.Embedding(self.inp, self._emb_size),
@@ -46,40 +38,13 @@ class AttentionalModule(pl.LightningModule):
             nn.Linear(self._hid_size * 2, self.out)
         )
 
-        self.metric_accuracy: Optional[torchmetrics.Accuracy] = None
-        self.metric_precision: Optional[torchmetrics.Precision] = None
-        self.metric_recall: Optional[torchmetrics.Recall] = None
         if training:
             self._context.data.normal_(.0, .05)
-            self.metric_recall = torchmetrics.Recall()
-            self.metric_accuracy = torchmetrics.Accuracy()
-            self.metric_precision = torchmetrics.Precision()
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=5e-3)
-        return optimizer
+    def get_preds_from_forward(self, predictions) -> torch.Tensor:
+        return predictions[0]
 
-    def training_step(self, train_batch, batch_idx):
-        (lines, lengths), truthes = train_batch
-        preds, weights = self(lines, lengths, softmax=False)
-        loss = F.cross_entropy(preds, truthes)
-        self.log('Train[Loss]', loss)
-        return loss, weights
-
-    def validation_step(self, val_batch, batch_idx):
-
-        (lines, lengths), truthes = val_batch
-        preds, weights = self(lines, lengths, softmax=False)
-        # Compute Accuracy or Precision/Recall here
-        loss = F.cross_entropy(preds, truthes)
-        self.log('Dev[Loss]', loss)
-        preds = preds.argmax(dim=-1)
-        self.log('Dev[Acc]', self.metric_accuracy(preds, truthes))
-        self.log('Dev[Pre]', self.metric_precision(preds, truthes))
-        self.log('Dev[Rec]', self.metric_recall(preds, truthes))
-        return loss, weights
-
-    def forward(self, inputs: torch.Tensor, lengths: torch.Tensor, softmax: bool = False):
+    def forward(self, inputs: torch.Tensor, lengths: torch.Tensor):
         # https://www.kaggle.com/code/kaushal2896/packed-padding-masking-with-attention-rnn-gru
         lengths = lengths.cpu()
         matrix = self._emb(inputs)
@@ -97,10 +62,15 @@ class AttentionalModule(pl.LightningModule):
         weights = F.softmax(weights, dim=1)
 
         # Get masks
-        mask = torch.ones(inputs.shape[:2]).bool().unsqueeze(dim=-1)
+        # When it's not pad, then it's accepted in the mask
+        mask = (inputs != self.encoder.pad).unsqueeze(dim=-1)
 
         # weights : (batch_size, sentence_len, 1)
-        weights = torch.where(mask != 0, weights, torch.full_like(mask, 0, dtype=torch.float, device=weights.device))
+        weights = torch.where(
+            mask == 1,
+            weights,
+            torch.full_like(mask, 0, dtype=torch.float, device=weights.device)
+        )
 
         # weights : (batch_size, sentence_len, 1)
         weights = weights / (torch.sum(weights, dim=1).unsqueeze(1) + 1e-4)
@@ -112,7 +82,6 @@ class AttentionalModule(pl.LightningModule):
         weights = weights.squeeze(2)
 
         matrix = self._lin(output)
+        #matrix = F.softmax(matrix, dim=-1)
 
-        if softmax:
-            return F.softmax(matrix, dim=-1), weights
         return matrix, weights

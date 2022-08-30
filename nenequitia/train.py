@@ -1,51 +1,79 @@
-from nenequitia.models import LstmModule
-from nenequitia.codecs import LabelEncoder
 from typing import Optional
 from pandas import DataFrame, read_hdf
-from torch.utils.data import Dataset, DataLoader
-import torch
+from torch.utils.data import DataLoader
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 import pytorch_lightning as pl
 
 
-class DataFrameDataset(Dataset):
-    def __init__(self, df: DataFrame, encoder: LabelEncoder):
-        self.df: DataFrame = df
-        self.encoder: LabelEncoder = encoder
-
-        self._transcriptions = [
-            self.encoder.encode_string(string)
-            for string in df.transcription
-        ]
-        self._bins = self.df.bin.tolist()
-
-    def __len__(self):
-        return len(self.df)
-
-    def __getitem__(self, idx):
-        return self._transcriptions[idx], self._bins[idx]
+from nenequitia.models import LstmModule, AttentionalModule
+from nenequitia.codecs import LabelEncoder
+from nenequitia.datasets import DataFrameDataset
+from nenequitia.contrib import get_manuscripts_and_lang_kfolds
 
 
 def train_from_hdf5_dataframe(
-    train: DataFrame, dev: DataFrame, test: Optional[DataFrame] = None,
-    batch_size: int = 256
+    train: DataFrame,
+    dev: DataFrame,
+    test: Optional[DataFrame] = None,
+    batch_size: int = 256,
+    lr=1e-4
 ):
     encoder = LabelEncoder.from_dataframe(train)
 
     # data
-    train_loader = DataLoader(DataFrameDataset(train, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt)
-    val_loader = DataLoader(DataFrameDataset(dev, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt)
-
+    train_loader = DataLoader(
+        DataFrameDataset(train, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
+        num_workers=4,
+        shuffle=True
+    )
+    val_loader = DataLoader(
+        DataFrameDataset(dev, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
+        num_workers=4
+    )
+    if test:
+        test_loader = DataLoader(
+            DataFrameDataset(test, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
+            num_workers=4
+        )
 
     # model
-    model = LstmModule(encoder=encoder, bins=len(train.bin.unique()), training=True)
+    model = AttentionalModule(encoder=encoder, bins=len(train.bin.unique()), training=True, lr=lr)
 
     # training
-    trainer = pl.Trainer(gpus=1, precision=16)
+    checkpoint_callback = ModelCheckpoint(
+        monitor="Dev[Rec]",
+        filename="sample-{epoch:02d}",
+        save_top_k=3,
+        mode="max",
+        verbose=True
+    )
+    trainer = pl.Trainer(
+        accelerator="gpu",
+        devices=1,
+        precision=16,
+        callbacks=[
+            checkpoint_callback,
+            EarlyStopping(monitor="Dev[Rec]", mode="max", min_delta=5e-3, patience=5, verbose=True)
+        ],
+        max_epochs=300
+    )
     trainer.fit(model, train_loader, val_loader)
+    if test:
+        trainer.test(dataloaders=test_loader)
+    return model
 
 
 if __name__ == "__main__":
-    df = read_hdf("../texts.hdf5", key="df", index_col=0)
-    train, dev, test = df.iloc[:1024, :], df.iloc[1024:2048, :], df.iloc[2048:3072, :]
-    print(LabelEncoder.from_dataframe(train).encode_string("Hello"))
-    train_from_hdf5_dataframe(train, dev)
+    df = read_hdf("texts.hdf5", key="df", index_col=0)
+
+    df["bin"] = (df.CER // 5).astype(int)
+    print(df.bin.unique())
+    print(df.lang.unique())
+
+    train, dev, test = get_manuscripts_and_lang_kfolds(
+        df,
+        k=0,
+        per_k=2,
+        force_test=["SBB_PK_Hdschr25"]
+    )
+    model = train_from_hdf5_dataframe(train, dev)
