@@ -5,7 +5,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 import pytorch_lightning as pl
 
 
-from nenequitia.models import LstmModule, AttentionalModule
+from nenequitia.models import RnnModule, AttentionalModule
 from nenequitia.codecs import LabelEncoder
 from nenequitia.datasets import DataFrameDataset
 
@@ -26,7 +26,7 @@ def test_from_hdf5_dataframe(
     )
 
     # model
-    model = AttentionalModule(encoder=encoder, bins=len(train.bin.unique()), training=True)
+    model = AttentionalModule(encoder=encoder, training=True)
 
     trainer = pl.Trainer(gpus=1, precision=16)
     trainer.test(model=model, dataloaders=test_loader, ckpt_path=ckpt_path)
@@ -37,7 +37,10 @@ if __name__ == "__main__":
     from nenequitia.contrib import get_manuscripts_and_lang_kfolds
     df = read_hdf("../texts.hdf5", key="df", index_col=0)
 
-    df["bin"] = (df.CER // 5).astype(int)
+    df.loc[df.CER < 10, "bin"] = "Good"
+    df.loc[df.CER.between(10, 20, inclusive="left"), "bin"] = "Acceptable"
+    df.loc[df.CER.between(20, 50, inclusive="left"), "bin"] = "Bad"
+    df.loc[df.CER >= 50, "bin"] = "Very bad"
     print(df.bin.unique())
     print(df.lang.unique())
 
@@ -50,7 +53,7 @@ if __name__ == "__main__":
     model = test_from_hdf5_dataframe(
         train=train,
         test=test,
-        ckpt_path="/home/thibault/dev/Medieval-Model/lightning_logs/version_23/checkpoints/sample-epoch=14.ckpt"
+        ckpt_path="/home/thibault/dev/Medieval-Model/lightning_logs/version_5/checkpoints/sample-epoch=01.ckpt"
     )
 
 

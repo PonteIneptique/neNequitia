@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 
 import torchmetrics
 import torch
@@ -17,8 +17,10 @@ from nenequitia.optimizers import Ranger
 
 class BaseModule(pl.LightningModule):
     # https://github.com/lascivaroma/seligator/blob/main/seligator/modules/seq2vec/han.py
-    def __init__(self, encoder: LabelEncoder, lr: float = 5e-3, training: bool = False):
+    def __init__(self, encoder: Union[LabelEncoder, Dict], lr: float = 5e-3, training: bool = False):
         super(BaseModule, self).__init__()
+        if isinstance(encoder, dict):
+            encoder = LabelEncoder.from_hparams(encoder)
         self.encoder = encoder
         self.inp, self.out = encoder.shape
 
@@ -48,9 +50,9 @@ class BaseModule(pl.LightningModule):
                 mode="min",
                 patience=2,
                 threshold=2e-3,
-                min_lr=1e-4
+                min_lr=1e-5
             ),
-            "monitor": "Dev[Loss]"
+            "monitor": "Train[Loss]"
         }
 
     def training_step(self, train_batch, batch_idx):

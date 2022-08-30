@@ -10,14 +10,16 @@ from nenequitia.models.base import BaseModule
 class AttentionalModule(BaseModule):
     # https://github.com/lascivaroma/seligator/blob/main/seligator/modules/seq2vec/han.py
     def __init__(self, encoder: LabelEncoder,
-                 emb_size: int = 200,
-                 hid_size: int = 256,
+                 cell: str = "GRU",
+                 emb_size: int = 64,
+                 hid_size: int = 120,
                  dropout: float = .2,
                  lr: float = 5e-3,
                  training: bool = False):
         super(AttentionalModule, self).__init__(
             encoder=encoder, lr=lr, training=training
         )
+        self.hparams["cell"]: str = cell
         self.hparams["dropout"]: float = dropout
         self.hparams["emb_size"]: int = emb_size
         self.hparams["hid_size"]: int = hid_size
@@ -28,10 +30,17 @@ class AttentionalModule(BaseModule):
         )
 
         # Attention everyone !
-        self._rnn = nn.GRU(self.hparams["emb_size"], hidden_size=self.hparams["hid_size"], bidirectional=True, batch_first=True)
+        if cell == "GRU":
+            self._rnn = nn.GRU(
+                input_size=self.hparams["emb_size"], hidden_size=self.hparams["hid_size"],
+                bidirectional=True, batch_first=True)
+        else:
+            self._rnn = nn.LSTM(
+                input_size=self.hparams["emb_size"], hidden_size=self.hparams["hid_size"],
+                bidirectional=True, batch_first=True)
         self._rnn_dropout = nn.Dropout(self.hparams["dropout"])
         self._context = nn.Parameter(torch.Tensor(2 * hid_size, 1), requires_grad=True)
-        self._rnn_dense = nn.Linear(2 * hid_size, 2 * hid_size)
+        self._rnn_dense = nn.Linear(2 * hid_size, 2 * hid_size, bias=False)
 
         self._lin = nn.Sequential(
             nn.Dropout(self.hparams["dropout"]),

@@ -13,11 +13,12 @@ class LabelEncoder:
         features: List[str],
         ys: List[str],
         langs: Optional[List[str]] = None,
-        inject_special: bool = True
+        inject_special: bool = True,
+        use_langs: bool = False
     ):
         self.features: Tuple[str, ...] = tuple(features)
         self.ys: Tuple[str, ...] = tuple(ys)
-        self.use_langs: bool = False
+        self.use_langs: bool = use_langs
         if langs:
             self.use_langs = True
             self.langs = langs
@@ -80,6 +81,13 @@ class LabelEncoder:
     def encode_y(self, bin: str) -> int:
         return self.ys.index(bin)
 
+    def pad_pred(self, strings: List[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+        lengths = [string.shape[0] for string in strings]
+        return (
+           pad_sequence(strings, batch_first=True, padding_value=self.pad),
+           torch.tensor(lengths)
+        )
+
     def pad_gt(self, gt: List[Tuple[torch.Tensor, int]]) -> Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
         strings, ys = zip(*gt)
         lengths = [string.shape[0] for string in strings]
@@ -105,6 +113,15 @@ class LabelEncoder:
             "use_lang": self.use_langs,
             "ys": self.ys
         }
+
+    @classmethod
+    def from_hparams(cls, hparams: Dict):
+        return cls(
+            hparams["features"],
+            use_langs=hparams["use_lang"],
+            ys=hparams["ys"],
+            inject_special=False
+        )
 
 
 if __name__ == "__main__":

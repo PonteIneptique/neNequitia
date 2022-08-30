@@ -5,7 +5,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 import pytorch_lightning as pl
 
 
-from nenequitia.models import LstmModule, AttentionalModule
+from nenequitia.models import RnnModule, AttentionalModule, TextCnnModule, CustomTextRCnnModule
 from nenequitia.codecs import LabelEncoder
 from nenequitia.datasets import DataFrameDataset
 from nenequitia.contrib import get_manuscripts_and_lang_kfolds
@@ -15,6 +15,7 @@ def train_from_hdf5_dataframe(
     train: DataFrame,
     dev: DataFrame,
     test: Optional[DataFrame] = None,
+    module = AttentionalModule,
     batch_size: int = 256,
     lr=1e-4,
     hparams: Optional[Dict] = None
@@ -35,7 +36,7 @@ def train_from_hdf5_dataframe(
     )
 
     # model
-    model = AttentionalModule(encoder=encoder, training=True, lr=lr, **hparams)
+    model = module(encoder=encoder, training=True, lr=lr, **hparams)
 
     # training
     checkpoint_callback = ModelCheckpoint(
@@ -51,19 +52,19 @@ def train_from_hdf5_dataframe(
         precision=16,
         callbacks=[
             checkpoint_callback,
-            EarlyStopping(monitor="Dev[Rec]", mode="max", min_delta=5e-3, patience=5, verbose=True)
+            EarlyStopping(monitor="Dev[Rec]", mode="max", min_delta=2e-3, patience=10, verbose=True)
         ],
-        max_epochs=300
+        max_epochs=100
     )
     model.save_hyperparameters()
     trainer.fit(model, train_loader, val_loader)
-    if test:
+    if test is not None:
         test_loader = DataLoader(
             DataFrameDataset(test, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
             num_workers=4
         )
-
-    return trainer.test(dataloaders=test_loader)
+        return model, trainer.test(dataloaders=test_loader)
+    return model
 
 
 if __name__ == "__main__":
@@ -71,17 +72,29 @@ if __name__ == "__main__":
 
     df["bin"] = ""
     df.loc[df.CER < 10, "bin"] = "Good"
-    df.loc[df.CER.between(10, 20, inclusive="left"), "bin"] = "Acceptable"
+    df.loc[df.CER.between(10, 25, inclusive="left"), "bin"] = "Acceptable"
     df.loc[df.CER.between(20, 50, inclusive="left"), "bin"] = "Bad"
     df.loc[df.CER >= 50, "bin"] = "Very bad"
 
-    for (lr, dropout) in [(1e-3, .1), (1e-3, .2), (1e-4, .1)]:
+    for (lr, dropout) in [(1e-4, .1)]:
         for i in range(1):
             train, dev, test = get_manuscripts_and_lang_kfolds(
                 df,
                 k=i, per_k=2,
                 force_test=["SBB_PK_Hdschr25"]
             )
-            model = train_from_hdf5_dataframe(train, dev, test=test, lr=lr, hparams={
-                "dropout": dropout
-            })
+            print("Train dataset description")
+            print(train.groupby("bin").size())
+            print("Dev dataset description")
+            print(dev.groupby("bin").size())
+            print("Test dataset description")
+            print(test.groupby("bin").size())
+            model = train_from_hdf5_dataframe(
+                train, dev, test=test,
+                module=TextCnnModule,
+                lr=lr, hparams={
+                "dropout": dropout,
+                #"emb_size": 128,
+                #"hid_size": 128,
+                #"cell": "LSTM"
+            }, batch_size=128)
