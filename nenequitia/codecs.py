@@ -91,6 +91,12 @@ class LabelEncoder:
         json.dump(self.features, f)
         f.close()
 
+    def to_hparams(self):
+        return {
+            "features": self.features,
+            "use_lang": self.use_langs
+        }
+
 
 if __name__ == "__main__":
     encoder = LabelEncoder(list("Helo"))

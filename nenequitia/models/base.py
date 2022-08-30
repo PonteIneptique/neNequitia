@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 
 import torchmetrics
 import torch
@@ -23,6 +23,9 @@ class BaseModule(pl.LightningModule):
         self.inp = len(encoder)
         self.out = bins
 
+        self.hparams["encoder"] = self.encoder.to_hparams()
+        self.hparams["bins"] = self.out
+
         self._lr: float = lr
 
         self.metric_accuracy: Optional[torchmetrics.Accuracy] = None
@@ -34,6 +37,7 @@ class BaseModule(pl.LightningModule):
             self.metric_accuracy = torchmetrics.Accuracy(average="macro", num_classes=bins)
             self.metric_precision = torchmetrics.Precision(average="macro", num_classes=bins)
             self.metric_confusion = torchmetrics.ConfusionMatrix(normalize="true", num_classes=bins,)
+
 
     def get_preds_from_forward(self, predictions) -> torch.Tensor:
         return predictions

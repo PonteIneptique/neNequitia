@@ -67,13 +67,12 @@ if __name__ == "__main__":
     df = read_hdf("texts.hdf5", key="df", index_col=0)
 
     df["bin"] = (df.CER // 5).astype(int)
-    print(df.bin.unique())
-    print(df.lang.unique())
 
-    train, dev, test = get_manuscripts_and_lang_kfolds(
-        df,
-        k=0,
-        per_k=2,
-        force_test=["SBB_PK_Hdschr25"]
-    )
-    model = train_from_hdf5_dataframe(train, dev)
+    for i in range(5):
+        train, dev, test = get_manuscripts_and_lang_kfolds(
+            df,
+            k=i,
+            per_k=2,
+            force_test=["SBB_PK_Hdschr25"]
+        )
+        model = train_from_hdf5_dataframe(train, dev)

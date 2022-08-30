@@ -10,32 +10,32 @@ from nenequitia.models.base import BaseModule
 class AttentionalModule(BaseModule):
     # https://github.com/lascivaroma/seligator/blob/main/seligator/modules/seq2vec/han.py
     def __init__(self, encoder: LabelEncoder, bins: int,
-                 emb_size: int = 100,
-                 hid_size: int = 128,
+                 emb_size: int = 200,
+                 hid_size: int = 256,
                  dropout: float = .2,
                  lr: float = 5e-3,
                  training: bool = False):
         super(AttentionalModule, self).__init__(
             encoder=encoder, bins=bins, lr=lr, training=training
         )
-        self._dropout: float = dropout
-        self._emb_size: int = emb_size
-        self._hid_size: int = hid_size
+        self.hparams["dropout"]: float = dropout
+        self.hparams["emb_size"]: int = emb_size
+        self.hparams["hid_size"]: int = hid_size
 
         self._emb = nn.Sequential(
-            nn.Embedding(self.inp, self._emb_size),
-            nn.Dropout(self._dropout)
+            nn.Embedding(self.inp, self.hparams["emb_size"]),
+            nn.Dropout(self.hparams["dropout"])
         )
 
         # Attention everyone !
-        self._rnn = nn.GRU(self._emb_size, hidden_size=self._hid_size, bidirectional=True, batch_first=True)
-        self._rnn_dropout = nn.Dropout(self._dropout)
+        self._rnn = nn.GRU(self.hparams["emb_size"], hidden_size=self.hparams["hid_size"], bidirectional=True, batch_first=True)
+        self._rnn_dropout = nn.Dropout(self.hparams["dropout"])
         self._context = nn.Parameter(torch.Tensor(2 * hid_size, 1), requires_grad=True)
         self._rnn_dense = nn.Linear(2 * hid_size, 2 * hid_size)
 
         self._lin = nn.Sequential(
-            nn.Dropout(self._dropout),
-            nn.Linear(self._hid_size * 2, self.out)
+            nn.Dropout(self.hparams["dropout"]),
+            nn.Linear(self.hparams["hid_size"] * 2, self.out)
         )
 
         if training:
