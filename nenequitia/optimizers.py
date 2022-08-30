@@ -1,8 +1,27 @@
-# https://github.com/lessw2020/Ranger-Deep-Learning-Optimizer
-# https://www.kaggle.com/code/ligtfeather/pytorch-lightning-grid-mask-ranger-opt-w-b/notebook
-import math
+# Ranger deep learning optimizer - RAdam + Lookahead + Gradient Centralization, combined into one optimizer.
 
-# Pytorch
+# https://github.com/lessw2020/Ranger-Deep-Learning-Optimizer
+# and/or
+# https://github.com/lessw2020/Best-Deep-Learning-Optimizers
+
+# Ranger has now been used to capture 12 records on the FastAI leaderboard.
+
+# This version = 20.4.11
+
+# Credits:
+# Gradient Centralization --> https://arxiv.org/abs/2004.01461v2 (a new optimization technique for DNNs), github:  https://github.com/Yonghongwei/Gradient-Centralization
+# RAdam -->  https://github.com/LiyuanLucasLiu/RAdam
+# Lookahead --> rewritten by lessw2020, but big thanks to Github @LonePatient and @RWightman for ideas from their code.
+# Lookahead paper --> MZhang,G Hinton  https://arxiv.org/abs/1907.08610
+
+# summary of changes:
+# 4/11/20 - add gradient centralization option.  Set new testing benchmark for accuracy with it, toggle with use_gc flag at init.
+# full code integration with all updates at param level instead of group, moves slow weights into state dict (from generic weights),
+# supports group learning rates (thanks @SHolderbach), fixes sporadic load from saved model issues.
+# changes 8/31/19 - fix references to *self*.N_sma_threshold;
+# changed eps to 1e-5 as better default than 1e-8.
+
+import math
 import torch
 from torch.optim.optimizer import Optimizer
 
@@ -26,6 +45,10 @@ class Ranger(Optimizer):
         if not eps > 0:
             raise ValueError(f'Invalid eps: {eps}')
 
+        # parameter comments:
+        # beta1 (momentum) of .95 seems to work better than .90...
+        # N_sma_threshold of 5 seems better in testing than 4.
+        # In both cases, worth testing on your dataset (.90 vs .95, 4 vs 5) to make sure which works best for you.
 
         # prep defaults and init torch.optim base
         defaults = dict(lr=lr, alpha=alpha, k=k, step_counter=0, betas=betas,
@@ -62,6 +85,11 @@ class Ranger(Optimizer):
 
     def step(self, closure=None):
         loss = None
+        # note - below is commented out b/c I have other work that passes back the loss as a float, and thus not a callable closure.
+        # Uncomment if you need to use the actual closure...
+
+        if closure is not None:
+            loss = closure()
 
         # Evaluate averages and grad, update param tensors
         for group in self.param_groups:
@@ -79,8 +107,10 @@ class Ranger(Optimizer):
 
                 state = self.state[p]  # get state dict for this param
 
-                if len(state) == 0:
-
+                if len(state) == 0:  # if first time to run...init dictionary with our desired entries
+                    # if self.first_run_check==0:
+                    # self.first_run_check=1
+                    #print("Initializing slow buffer...should not see this at load from saved model!")
                     state['step'] = 0
                     state['exp_avg'] = torch.zeros_like(p_data_fp32)
                     state['exp_avg_sq'] = torch.zeros_like(p_data_fp32)
@@ -105,9 +135,9 @@ class Ranger(Optimizer):
                 state['step'] += 1
 
                 # compute variance mov avg
-                exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
+                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
                 # compute mean moving avg
-                exp_avg.mul_(beta1).add_(1 - beta1, grad)
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
 
                 buffered = self.radam_buffer[int(state['step'] % 10)]
 
@@ -134,10 +164,9 @@ class Ranger(Optimizer):
                 # apply lr
                 if N_sma > self.N_sma_threshhold:
                     denom = exp_avg_sq.sqrt().add_(group['eps'])
-                    p_data_fp32.addcdiv_(-step_size *
-                                         group['lr'], exp_avg, denom)
+                    p_data_fp32.addcdiv_(exp_avg, denom, value=-step_size * group['lr'])
                 else:
-                    p_data_fp32.add_(-step_size * group['lr'], exp_avg)
+                    p_data_fp32.add_(exp_avg, alpha=-step_size * group['lr'])
 
                 p.data.copy_(p_data_fp32)
 
@@ -147,7 +176,7 @@ class Ranger(Optimizer):
                     # get access to slow param tensor
                     slow_p = state['slow_buffer']
                     # (fast weights - slow weights) * alpha
-                    slow_p.add_(self.alpha, p.data - slow_p)
+                    slow_p.add_(p.data - slow_p, alpha=self.alpha)
                     # copy interpolated weights to RAdam param tensor
                     p.data.copy_(slow_p)
 

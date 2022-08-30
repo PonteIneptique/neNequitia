@@ -9,6 +9,7 @@ lightning_logs
 *.pt
 *.txt
 *.sh
+*.png
 
 __pycache__
 *.pyc

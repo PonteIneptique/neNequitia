@@ -11,8 +11,8 @@ class AttentionalModule(BaseModule):
     # https://github.com/lascivaroma/seligator/blob/main/seligator/modules/seq2vec/han.py
     def __init__(self, encoder: LabelEncoder, bins: int,
                  emb_size: int = 100,
-                 hid_size: int = 256,
-                 dropout: float = .1,
+                 hid_size: int = 128,
+                 dropout: float = .2,
                  lr: float = 5e-3,
                  training: bool = False):
         super(AttentionalModule, self).__init__(
@@ -45,7 +45,6 @@ class AttentionalModule(BaseModule):
         return predictions[0]
 
     def forward(self, inputs: torch.Tensor, lengths: torch.Tensor):
-        # https://www.kaggle.com/code/kaushal2896/packed-padding-masking-with-attention-rnn-gru
         lengths = lengths.cpu()
         matrix = self._emb(inputs)
         matrix = pack_padded_sequence(matrix, lengths, batch_first=True, enforce_sorted=False)
@@ -82,6 +81,5 @@ class AttentionalModule(BaseModule):
         weights = weights.squeeze(2)
 
         matrix = self._lin(output)
-        #matrix = F.softmax(matrix, dim=-1)
 
         return matrix, weights

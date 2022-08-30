@@ -2,15 +2,17 @@ from typing import Optional
 
 import torchmetrics
 import torch
+
 import numpy as np
-from torch import nn
-from torch.nn import functional as F
 import pytorch_lightning as pl
-from nenequitia.codecs import LabelEncoder
-from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
+import matplotlib.pyplot as plt
+
+from torch.nn import functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from sklearn.metrics import ConfusionMatrixDisplay
-import matplotlib.pyplot as plt
+
+from nenequitia.codecs import LabelEncoder
+from nenequitia.optimizers import Ranger
 
 
 class BaseModule(pl.LightningModule):
@@ -37,7 +39,7 @@ class BaseModule(pl.LightningModule):
         return predictions
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self._lr)
+        optimizer = Ranger(self.parameters(), lr=self._lr)
         return [optimizer], {
             "scheduler": ReduceLROnPlateau(
                 optimizer,
@@ -96,4 +98,4 @@ class BaseModule(pl.LightningModule):
 
         figure, ax = plt.subplots(figsize=(10, 10), dpi=300)
         confusion.plot(ax=ax, values_format=".0f")
-        plt.show()
+        plt.savefig("confusion.png")
