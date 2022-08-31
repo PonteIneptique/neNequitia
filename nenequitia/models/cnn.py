@@ -14,8 +14,8 @@ from nenequitia.codecs import LabelEncoder
 class TextCnnModule(BaseModule):
     # https://colab.research.google.com/github/pytorch/ignite/blob/master/examples/notebooks/TextCNN.ipynb#scrollTo=rjZMYxFoznj9
     def __init__(self, encoder: LabelEncoder,
-                 emb_size: int = 200,
-                 ngrams: Tuple[int, ...] = (3, 4, 5, 6),
+                 emb_size: int = 100,
+                 ngrams: Tuple[int, ...] = (2, 3, 4, 5, 6),
                  ngram_proj: int = 64,
                  dropout: float = .1,
                  lr: float = 5e-3,
@@ -67,7 +67,7 @@ class CustomTextRCnnModule(BaseModule):
     def __init__(self, encoder: LabelEncoder,
                  emb_size: int = 100,
                  ngrams: Tuple[int, ...] = (2, 3, 4, 5, 6),
-                 hid_size: int = 128,
+                 hid_size: int = 100,
                  ngram_proj: int = 100,
                  dropout: float = .1,
                  lr: float = 5e-3,

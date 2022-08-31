@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.cuda
 import torch.nn
@@ -30,6 +32,11 @@ class LabelEncoder:
         self._unk = 1
         self._bos = 2
         self._eos = 3
+        self._random_unk: Optional[int] = None
+
+    def set_random_unk(self, ratio: int):
+        assert 0 <= ratio <= 99, "Ratio should be an int between 0 and 99 included"
+        self._random_unk = ratio
 
     @property
     def shape(self):
@@ -67,12 +74,22 @@ class LabelEncoder:
             )
 
     def encode_string(self, string: str, lang: Optional[str] = None) -> torch.Tensor:
+        def map_string(local_string):
+            if self._random_unk:
+                local_string = [
+                    char if random.randint(0, 100) > self._random_unk else "[UNK]"
+                    for char in local_string
+                ]
+            return list([
+                self.features.index(c) if c in self.features else self._unk
+                for c in local_string
+            ])
         return torch.tensor(
             [
                 self._bos,
                 *(
                     ([] if not self.use_langs else [self.features.index(f"<{lang}>")]) +
-                    list([self.features.index(c) if c in self.features else 0 for c in string])
+                    map_string(string)
                 ),
                 self._eos
             ]
