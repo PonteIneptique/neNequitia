@@ -10,7 +10,7 @@ lightning_logs
 *.txt
 *.sh
 *.png
-
+*explogs*
 __pycache__
 *.pyc
 dev

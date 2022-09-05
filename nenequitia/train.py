@@ -22,21 +22,21 @@ def train_from_hdf5_dataframe(
     logger_kwargs: Optional[Dict] = None,
     hparams: Optional[Dict] = None
 ):
-    encoder = LabelEncoder.from_dataframe(train)
+    encoder = LabelEncoder.from_dataframe(train, use_lang=False)
     if not hparams:
         hparams = {}
 
-    encoder.set_random_unk(5)
+    encoder.set_random_unk(2)
 
     # data
     train_loader = DataLoader(
-        DataFrameDataset(train, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
+        DataFrameDataset(train, encoder), batch_size=batch_size, collate_fn=encoder.collate_gt,
         num_workers=4,
         shuffle=True
     )
     encoder.set_random_unk(0) # Disable for dev
     val_loader = DataLoader(
-        DataFrameDataset(dev, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
+        DataFrameDataset(dev, encoder), batch_size=batch_size, collate_fn=encoder.collate_gt,
         num_workers=4
     )
 
@@ -68,7 +68,7 @@ def train_from_hdf5_dataframe(
     trainer.fit(model, train_loader, val_loader)
     if test is not None:
         test_loader = DataLoader(
-            DataFrameDataset(test, encoder), batch_size=batch_size, collate_fn=encoder.pad_gt,
+            DataFrameDataset(test, encoder), batch_size=batch_size, collate_fn=encoder.collate_gt,
             num_workers=4
         )
         return model, trainer.test(dataloaders=test_loader)
@@ -86,10 +86,10 @@ if __name__ == "__main__":
 
     for (lr, dropout) in [(5e-4, .1)]:
         for module, kwargs in [
-            (RnnModule, {"dropout": dropout, "emb_size": 128, "hid_size": 256}),
-            (AttentionalModule, {"dropout": dropout, "emb_size": 128, "hid_size": 256, "cell": "LSTM"}),
+            (RnnModule, {"dropout": dropout, "emb_size": 200, "hid_size": 256}),
+            (AttentionalModule, {"dropout": dropout, "emb_size": 200, "hid_size": 256, "cell": "LSTM"}),
             (TextCnnModule, {"dropout": dropout, "emb_size": 100, "ngrams": (2, 3, 4, 5, 6)}),
-            (CustomTextRCnnModule, {"dropout": dropout, "emb_size": 100, "ngrams": (2, 3, 4, 5, 6)})
+            #(CustomTextRCnnModule, {"dropout": dropout, "emb_size": 100, "ngrams": (2, 3, 4, 5, 6)})
         ]:
             for i in range(5):
                 train, dev, test = get_manuscripts_and_lang_kfolds(
@@ -108,7 +108,7 @@ if __name__ == "__main__":
                     module=module, lr=lr, hparams=kwargs,
                     batch_size=128,
                     logger_kwargs=dict(
-                        save_dir="explogs",
+                        save_dir="explogs-nolang",
                         name=f"{module.__name__}",
                         version=str(i)
                     )

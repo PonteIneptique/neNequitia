@@ -98,14 +98,14 @@ class LabelEncoder:
     def encode_y(self, bin: str) -> int:
         return self.ys.index(bin)
 
-    def pad_pred(self, strings: List[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def collate_pred(self, strings: List[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
         lengths = [string.shape[0] for string in strings]
         return (
            pad_sequence(strings, batch_first=True, padding_value=self.pad),
            torch.tensor(lengths)
         )
 
-    def pad_gt(self, gt: List[Tuple[torch.Tensor, int]]) -> Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
+    def collate_gt(self, gt: List[Tuple[torch.Tensor, int]]) -> Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
         strings, ys = zip(*gt)
         lengths = [string.shape[0] for string in strings]
         return (
@@ -141,13 +141,67 @@ class LabelEncoder:
         )
 
 
-if __name__ == "__main__":
-    encoder = LabelEncoder(list("Helo"))
-    assert (encoder.encode_string("Hello").tolist() == [2, 4, 5, 6, 6, 7, 3]), \
-        "Encoding should be correct"
+class BaselineEncoder:
+    def __init__(
+        self,
+        features: List[str],
+        ys: List[str],
+        ngrams: Tuple[float, ...] = (3, )
+    ):
+        self.features: Tuple[str, ...] = tuple(features)
+        self.ys: Tuple[str, ...] = tuple(ys)
+        self.ngrams: Tuple[float, ...] = ngrams
 
-    batch = ["Helloo", "Hello"]
-    assert (encoder.pad_batch(batch)[1].tolist() == [[2, 4, 5, 6, 6, 7, 7, 3], [2, 4, 5, 6, 6, 7, 3, 0]]), \
-        "Padding should be correct."
-    assert (encoder.pad_batch(batch)[0].tolist() == [8, 7]), \
-        "Lengths should be correct."
+    @property
+    def shape(self):
+        return len(self.features), len(self.ys)
+
+    @classmethod
+    def from_dataframe(cls, df: DataFrame) -> "BaselineEncoder":
+        if "transcription" not in df.columns.tolist():
+            raise ValueError("Dataframe requires a `transcription` column containing the text of each line")
+        if "bin" not in df.columns.tolist():
+            raise ValueError("Dataframe requires a `bin` column containing the class of each line")
+        feats = [col[1:] for col in df.columns if col.startswith("$")]
+        return cls(
+            features=feats,
+            ys=df.bin.unique().tolist(),
+            ngrams=tuple(sorted(list(set([len(col) for col in feats]))))
+        )
+
+    def to_hparams(self):
+        return {
+            "features": self.features,
+            "ys": self.ys,
+            "ngrams": self.ngrams
+        }
+
+    @classmethod
+    def from_hparams(cls, hparams: Dict):
+        return cls(
+            hparams["features"],
+            ys=hparams["ys"],
+            ngrams=hparams["ngrams"]
+        )
+
+    def encode_string(self, string: str) -> List[float]:
+        string = string.replace(" ", "_")
+        return [
+            string.count(feature) / len(feature)
+            for feature in self.features
+        ]
+
+    def encode_y(self, bin: str) -> int:
+        return self.ys.index(bin)
+
+    def collate_gt(self, gt: List[Tuple[torch.Tensor, int]]) -> Tuple[torch.Tensor, torch.Tensor]:
+        strings, ys = zip(*gt)
+        return torch.tensor(strings), torch.tensor(ys)
+
+
+if __name__ == "__main__":
+
+    from pandas import read_hdf
+    features = BaselineEncoder.from_dataframe(read_hdf("../features.hdf5", key="df"))
+    print(features.features)
+

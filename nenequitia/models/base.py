@@ -75,6 +75,15 @@ class BaseModule(pl.LightningModule):
         self.log('Dev[Rec]', self.metric_recall(preds, truthes), prog_bar=True, on_epoch=True)
         return loss
 
+    def predict_step(self, batch, batch_idx: int, dataloader_idx: int = 0):
+        lines, lengths = batch
+        preds = self.get_preds_from_forward(self(lines, lengths))
+        preds = preds.argmax(dim=-1)
+        return [
+            self.encoder.ys[pred]
+            for pred in preds.cpu().tolist()
+        ]
+
     def test_step(self, batch, batch_idx):
         (lines, lengths), truthes = batch
         preds = self.get_preds_from_forward(self(lines, lengths))
@@ -88,9 +97,9 @@ class BaseModule(pl.LightningModule):
         self.log('Test[Rec]', self.metric_recall(preds, truthes), prog_bar=True, on_epoch=True)
         self.metric_confusion(preds, truthes)
 
-    def on_test_end(self) -> None:
-        confusion = self.metric_confusion.confmat.cpu().numpy()
-        confusion = confusion/confusion.sum(axis=1, keepdims=True)*100
+    def on_test_end(self):
+        conf_matrix = self.metric_confusion.confmat.cpu().numpy()
+        confusion = conf_matrix/conf_matrix.sum(axis=1, keepdims=True)*100
         confusion = np.round(confusion, 0)
         confusion = ConfusionMatrixDisplay(
             confusion_matrix=confusion,
@@ -100,3 +109,5 @@ class BaseModule(pl.LightningModule):
         figure, ax = plt.subplots(figsize=(10, 10), dpi=300)
         confusion.plot(ax=ax, values_format=".0f")
         plt.savefig("confusion.png")
+
+        return conf_matrix, self.encoder.ys
