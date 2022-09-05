@@ -99,6 +99,7 @@ class LabelEncoder:
         return self.ys.index(bin)
 
     def collate_pred(self, strings: List[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+        strings, ys = zip(*strings)
         lengths = [string.shape[0] for string in strings]
         return (
            pad_sequence(strings, batch_first=True, padding_value=self.pad),
@@ -197,6 +198,10 @@ class BaselineEncoder:
     def collate_gt(self, gt: List[Tuple[torch.Tensor, int]]) -> Tuple[torch.Tensor, torch.Tensor]:
         strings, ys = zip(*gt)
         return torch.tensor(strings), torch.tensor(ys)
+
+    def collate_pred(self, strings: List[torch.Tensor]) -> torch.Tensor:
+        strings, ys = zip(*strings)
+        return torch.tensor(strings)
 
 
 if __name__ == "__main__":

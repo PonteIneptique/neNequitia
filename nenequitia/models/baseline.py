@@ -78,7 +78,7 @@ class BaselineModule(pl.LightningModule):
         return loss
 
     def predict_step(self, batch, batch_idx: int, dataloader_idx: int = 0):
-        lines, lengths = batch
+        lines = batch
         preds = self(lines)
         preds = preds.argmax(dim=-1)
         return [
