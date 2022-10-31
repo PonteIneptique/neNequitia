@@ -1,0 +1,69 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: NeNequitia
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Thibault
+    family-names: Clerice
+    email: thibault.clerice+citationcff@chartes.psl.eu
+    orcid: 'https://orcid.org/0000-0003-1852-9204'
+    affiliation: Centre Jean Mabillon
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.7233985
+    description: Zenodo Release of the CHR paper version
+repository-code: 'https://github.com/PonteIneptique/neNequitia'
+abstract: >-
+  As more and more projects openly release ground
+  truth for handwritten text recognition (HTR), we
+  expect the quality of automatic transcription to
+  improve on unseen data. Getting models robust to
+  scribal and material changes is a necessary step
+  for specific data mining tasks. However, evaluation
+  of HTR results requires ground truth to compare
+  prediction statistically. In the context of modern
+  languages, successful attempts to evaluate quality
+  have been done using lexical features or n-grams.
+  This, however, proves difficult in the context of
+  spelling variation that both Old French and Latin
+  have, even more so in the context of sometime
+  heavily abbreviated manuscripts. We propose a new
+  method based on deep learning where we attempt to
+  categorize each line error rate into four error
+  rate ranges (0 < 10% < 25% < 50% < 100%) using
+  three different encoder (GRU with Attention,
+  BiLSTM, TextCNN). To train these models, we propose
+  a new dataset engineering approach using early
+  stopped model, as an alternative to rule-based fake
+  predictions. Our model largely outperforms the
+  n-gram approach. We also provide an example
+  application to qualitatively analyse our
+  classifier, using classification on new prediction
+  on a sample of 1,800 manuscripts ranging from the
+  9th century to the 15th.
+license: MPL-2.0
+version: Paper
+date-released: '2022-10-31'
+preferred-citation:
+  title: "Ground-truth Free Evaluation of HTR on Old French and Latin Medieval Literary Manuscripts"
+  authors:
+    - given-names: Thibault
+      family-names: Clerice
+      email: thibault.clerice+citationcff@chartes.psl.eu
+      orcid: 'https://orcid.org/0000-0003-1852-9204'
+      affiliation: Centre Jean Mabillon
+  type: conference-paper
+  collection-type: proceedings
+  collection-title: "Proceedings of the Conference on Computational Humanities Research 2022"
+  url: "https://hal-enc.archives-ouvertes.fr/hal-03828529"
+  conference:
+    name: "CHR 2022: Computational Humanities Research Conference"
+    date-start: "2022-12-12"
+    country: "Belgium"
+    city: "Antwerp"
+    alias: "CHR2022"
